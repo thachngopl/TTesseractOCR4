@@ -3,7 +3,7 @@ unit tesseractocr;
 { The MIT License (MIT)
  
  TTesseractOCR4
- Copyright (c) 2017 Damian Woroch, http://r1me.pl
+ Copyright (c) 2018 Damian Woroch, http://rime.ddns.net/
  
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated documentation files (the "Software"), to deal
@@ -30,12 +30,14 @@ uses
   System.Types,
   System.SysUtils,
   System.IOUtils,
+  System.Math,
   Vcl.Graphics,
   Vcl.Imaging.pngimage,
   {$ELSE}
   Classes,
   Types,
   SysUtils,
+  Math,
   Graphics,
   {$ENDIF}
   tesseractocr.consts,
@@ -496,6 +498,7 @@ var
   pdfRenderer: TessPDFRenderer;
   oldPageSegMode: TessPageSegMode;
   outFileName: String;
+  exceptionMask: TFPUExceptionMask;
 begin
   Result := False;
   if FBusy then Exit;
@@ -508,13 +511,19 @@ begin
     {$ELSE}
     outFileName := ConcatPaths([ExtractFileDir(AOutputFileName), ChangeFileExt(AOutputFileName, '')]);
     {$ENDIF}
-    pdfRenderer := TessPDFRendererCreate(PUTF8Char(UTF8Encode(outFileName)),
-      PUTF8Char(UTF8Encode(FDataPath)), False);
+    exceptionMask := GetExceptionMask;
+    SetExceptionMask(exceptionMask + [exZeroDivide, exInvalidOp]);
     try
-      Result := TessBaseAPIProcessPages(FTessBaseAPI,
-        PUTF8Char(UTF8Encode(ASourceFileName)), nil, 0, pdfRenderer);
+      pdfRenderer := TessPDFRendererCreate(PUTF8Char(UTF8Encode(outFileName)),
+        PUTF8Char(UTF8Encode(FDataPath)), False);
+      try
+        Result := TessBaseAPIProcessPages(FTessBaseAPI,
+          PUTF8Char(UTF8Encode(ASourceFileName)), nil, 0, pdfRenderer);
+      finally
+        TessDeleteResultRenderer(pdfRenderer);
+      end;
     finally
-      TessDeleteResultRenderer(pdfRenderer);
+      SetExceptionMask(exceptionMask);
     end;
   finally
     PageSegMode := oldPageSegMode;
